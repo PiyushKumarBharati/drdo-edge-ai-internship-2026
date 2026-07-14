@@ -21,7 +21,7 @@ pandas:       3.0.3
 matplotlib:   3.11.0
 scikit-learn: 1.9.0
 tensorflow:   2.21.0
-opencv-python:5.0.0.93
+opencv-python:4.13.0.92 (cv2.__version__ reports "4.13.0")
 seaborn:      0.13.2
 ```
 

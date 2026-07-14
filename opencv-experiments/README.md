@@ -67,13 +67,13 @@ center crop:
 | ![gray](03_grayscale.jpg) | ![otsu](03_threshold_otsu.jpg) | ![mask](03_orange_mask.jpg) |
 
 ### 04 — Edge detection
-| No blur (1,465 edge px) | Blur first (1,543 edge px) |
+| No blur (1,515 edge px) | Blur first (1,603 edge px) |
 |---|---|
 | ![no blur](04_edges_no_blur.jpg) | ![with blur](04_edges_with_blur.jpg) |
 
 **Real, measured result — reported honestly even though it wasn't what we
 expected:** blurring first *increased* the edge pixel count on this image
-(+78 px), the opposite of the usual "blur reduces noisy edges" story. That's
+(+88 px), the opposite of the usual "blur reduces noisy edges" story. That's
 because this synthetic image has clean, hard geometric edges and zero sensor
 noise — blur softened the anti-aliased boundaries just enough for Canny's
 edge-linking step to connect a few more border pixels into continuous lines.
@@ -111,7 +111,22 @@ crash would be.
   caught by actually looking at the output images, not assumed to be correct.
 - `06_webcam_capture.py`'s `cap.isOpened()` check matters — on this
   development machine a webcam happened to be available and the capture loop
-  ran for real (verified: 100 frames captured and released cleanly); passing
-  an invalid camera index (tested with `camera_index=99`) correctly triggers
-  the "no camera available" path instead of crashing. Both branches of this
-  function have been exercised, not just assumed to work.
+  ran for real (verified: 50 frames captured, `q` pressed, released cleanly);
+  passing an invalid camera index (tested with `camera_index=99`) correctly
+  triggers the "no camera available" path instead of crashing. Both branches
+  of this function have been exercised, not just assumed to work.
+- **`opencv-python`'s Python API is not stable across major versions.**
+  The originally-installed `opencv-python==5.0.0.93` (this repo's very first
+  pin) doesn't expose `cv2.CascadeClassifier` in its Python bindings at
+  all — discovered only when `mini-projects/face-or-object-detector/`
+  actually tried to use it. Downgraded the whole repo to
+  `opencv-python==4.13.0.92` (a long-established, stable 4.x release) and
+  re-ran every OpenCV-dependent script to confirm nothing else broke. That
+  downgrade also surfaced a second real issue: on this Windows machine,
+  OpenCV's default camera backend (MSMF) opened the camera successfully
+  but then silently failed to grab any frames. Passing `cv2.CAP_DSHOW`
+  explicitly on Windows (falling back to `cv2.CAP_ANY` elsewhere, e.g. the
+  Pi's Linux/V4L2) fixed it — see the `_CAMERA_BACKEND` constant in
+  `06_webcam_capture.py`, `raspberry-pi/camera_inference.py`, and
+  `mini-projects/face-or-object-detector/detect.py`. Both problems were
+  found by actually running the code against real hardware, not assumed.

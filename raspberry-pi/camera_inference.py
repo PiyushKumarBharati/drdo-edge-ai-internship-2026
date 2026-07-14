@@ -15,10 +15,17 @@ internship -- see setup_pi.md for how it would be deployed there.
 
 import argparse
 import os
+import sys
 import time
 
 import cv2
 import numpy as np
+
+# On Windows, OpenCV's default MSMF backend was unreliable in testing here
+# (opened successfully but then failed to grab frames). CAP_DSHOW is the
+# more reliable Windows backend; other platforms (e.g. the Pi's Linux/V4L2)
+# use OpenCV's normal default by passing CAP_ANY.
+_CAMERA_BACKEND = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
 
 try:
     from tflite_runtime.interpreter import Interpreter
@@ -77,7 +84,7 @@ def run_camera_loop(model_path, camera_index=0, max_frames=None):
     input_details = interpreter.get_input_details()[0]
     output_details = interpreter.get_output_details()[0]
 
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(camera_index, _CAMERA_BACKEND)
     if not cap.isOpened():
         print(f"No camera available at index {camera_index}. Exiting cleanly instead of crashing.")
         return False

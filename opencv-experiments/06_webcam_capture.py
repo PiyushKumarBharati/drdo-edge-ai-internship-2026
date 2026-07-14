@@ -8,7 +8,15 @@ useless -- it needs to detect that case and exit cleanly, the same way
 raspberry-pi/camera_inference.py has to.
 """
 
+import sys
+
 import cv2
+
+# On Windows, OpenCV's default MSMF backend was unreliable in testing here
+# (opened successfully but then failed to grab frames). CAP_DSHOW is the
+# more reliable Windows backend; other platforms (e.g. the Pi's Linux/V4L2)
+# use OpenCV's normal default by passing CAP_ANY.
+_CAMERA_BACKEND = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
 
 
 def run_webcam_loop(camera_index=0, max_frames=None):
@@ -18,7 +26,7 @@ def run_webcam_loop(camera_index=0, max_frames=None):
     runs of this script so it doesn't hang forever waiting for a keypress).
     Returns True if a camera was successfully opened and used, False if not.
     """
-    cap = cv2.VideoCapture(camera_index)
+    cap = cv2.VideoCapture(camera_index, _CAMERA_BACKEND)
 
     if not cap.isOpened():
         print(f"No camera available at index {camera_index} -- this is expected on a headless")
