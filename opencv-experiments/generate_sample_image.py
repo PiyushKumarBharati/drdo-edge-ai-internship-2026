@@ -20,19 +20,21 @@ OUT_PATH = os.path.join(HERE, "sample.jpg")
 
 HEIGHT, WIDTH = 240, 320
 
-# Start with a horizontal gradient background (dark blue -> light blue), BGR order for OpenCV.
+# Start with a DARK horizontal gradient background (dark navy -> dark teal), BGR order for
+# OpenCV. Kept deliberately low-luminance so every shape below has a large luminance jump
+# against it -- luminance contrast, not just color contrast, is what edge detectors respond to.
 img = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
 for x in range(WIDTH):
     t = x / (WIDTH - 1)
-    img[:, x] = [int(150 + 100 * t), int(80 + 60 * t), int(30 + 20 * t)]  # B, G, R
+    img[:, x] = [int(60 + 20 * t), int(35 + 15 * t), int(20 + 10 * t)]  # B, G, R -- luminance ~30-45
 
-# A filled red circle (BGR: red = (0, 0, 255)) -- gives edge detection something round to find.
-cv2.circle(img, center=(90, 120), radius=55, color=(30, 30, 220), thickness=-1)
+# A filled bright orange/yellow circle -- high luminance against the dark background.
+cv2.circle(img, center=(90, 120), radius=55, color=(40, 170, 240), thickness=-1)  # BGR -> luminance ~165
 
-# A filled green rectangle -- gives it something with straight edges/corners.
-cv2.rectangle(img, pt1=(180, 60), pt2=(280, 160), color=(40, 160, 40), thickness=-1)
+# A filled bright cyan rectangle -- high luminance, and distinct hue from the circle.
+cv2.rectangle(img, pt1=(180, 60), pt2=(280, 160), color=(200, 200, 50), thickness=-1)  # BGR -> luminance ~155
 
-# A white filled triangle -- one more distinct shape / edge case for contour-ish demos.
+# A white filled triangle -- highest luminance, one more distinct shape for contour demos.
 triangle_pts = np.array([[230, 200], [300, 200], [265, 130]], dtype=np.int32)
 cv2.fillPoly(img, [triangle_pts], color=(230, 230, 230))
 
