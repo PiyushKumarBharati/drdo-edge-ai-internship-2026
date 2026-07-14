@@ -1,0 +1,24 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Large model checkpoints (kept out; .tflite files ARE committed on purpose)
+*.h5
+
+# Raw/large datasets (downloaded on demand by scripts, not stored in git)
+data/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,15 @@
+# Pinned to the versions actually installed and used to produce every result
+# in this repository (Python 3.13.2, see README.md for the exact python/tf
+# version printout). Generated from `pip freeze`, trimmed to the packages this
+# repo's code directly imports -- see pip_freeze_full.txt for the complete
+# resolved environment including transitive dependencies.
+
+numpy==2.5.1
+pandas==3.0.3
+matplotlib==3.11.0
+scikit-learn==1.9.0
+tensorflow==2.21.0
+opencv-python==5.0.0.93
+seaborn==0.13.2
+jupyter==1.1.1
+pillow==12.3.0

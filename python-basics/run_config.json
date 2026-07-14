@@ -1,0 +1,17 @@
+{
+  "model_name": "fashion_mnist_cnn",
+  "input_shape": [
+    28,
+    28,
+    1
+  ],
+  "num_classes": 10,
+  "quantized": false,
+  "class_names": [
+    "tshirt",
+    "trouser",
+    "pullover",
+    "dress",
+    "coat"
+  ]
+}

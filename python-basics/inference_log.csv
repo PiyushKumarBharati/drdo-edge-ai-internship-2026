@@ -1,0 +1,4 @@
+image,predicted_class,confidence
+cat_001.jpg,cat,0.94
+dog_001.jpg,dog,0.88
+cat_002.jpg,dog,0.51
