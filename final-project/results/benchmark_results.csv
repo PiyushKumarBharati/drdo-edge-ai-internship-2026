@@ -1,0 +1,4 @@
+model,size_kb,accuracy,latency_ms
+float32,107.3242,0.9007,0.2439
+dynamic_range,35.4219,0.9014,0.1517
+int8,36.4062,0.8589,0.2056
