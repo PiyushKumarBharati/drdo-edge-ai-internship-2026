@@ -97,10 +97,3 @@ full INT8 quantization cost a real ~4.2 percentage points of accuracy here
 (vs. under 0.2 points on the simpler model), most likely due to batch
 normalization adding extra quantization sensitivity — demonstrating that the
 quantization tradeoff is architecture-dependent, not a fixed cost.
-
-## Reporting
-
-This report and `final-report.md` — pulling together every real measurement
-produced across all of the above topics into one coherent technical
-narrative, written and reviewed against the actual repository code and
-output rather than drafted first and back-filled with numbers.
