@@ -2,19 +2,19 @@
 
 ## Purpose
 
-Face detection with OpenCV's Haar cascade classifier — a classical
+Face detection with OpenCV's Haar cascade classifier, a classical
 (pre-deep-learning) technique that's genuinely relevant to edge deployment:
 no GPU, no neural network interpreter, just fast image convolutions that run
 in milliseconds on very modest hardware.
 
 ## A note on the test image
 
-This is a **public repository**. Detection demos like this usually run on a
+This is a public repository. Detection demos like this usually run on a
 photo of a person, which raises a real privacy/consent question that doesn't
 apply to the synthetic shapes or public datasets used elsewhere in this repo.
 `test_photo.jpg` is a live photo captured from this development machine's own
-webcam during this session, used **with explicit confirmation** before it was
-added to the repo — nothing here uses an image of a stranger scraped from the
+webcam during this session, used with explicit confirmation before it was
+added to the repo. Nothing here uses an image of a stranger scraped from the
 internet.
 
 ## Files
@@ -22,7 +22,7 @@ internet.
 | File | Description |
 |---|---|
 | `detect.py` | Loads OpenCV's bundled `haarcascade_frontalface_default.xml`, runs `detectMultiScale` on an image (default: `test_photo.jpg`), draws boxes, saves the result. `--webcam` also runs live detection on a camera feed. |
-| `test_photo.jpg` | A real photo captured from this machine's webcam (used with explicit approval — see above). |
+| `test_photo.jpg` | A real photo captured from this machine's webcam (used with explicit approval, see above). |
 | `detection_result.jpg` | Output: `test_photo.jpg` with a detected-face bounding box drawn on it. |
 
 ## How to run
@@ -33,7 +33,7 @@ python mini-projects/face-or-object-detector/detect.py --image path/to/img.jpg
 python mini-projects/face-or-object-detector/detect.py --webcam --max-frames 50  # also runs live detection
 ```
 
-## Real result
+## Result
 
 ```
 Image: test_photo.jpg
@@ -43,42 +43,41 @@ Faces detected: 1
 
 ![detection result](detection_result.jpg)
 
-**A real tuning problem, found and fixed by testing, not assumed:** the
-commonly-quoted "default" Haar cascade parameters (`scaleFactor=1.1`,
-`minNeighbors=5`) found **zero** faces in this photo — likely due to the
+The commonly-quoted "default" Haar cascade parameters (`scaleFactor=1.1`,
+`minNeighbors=5`) found zero faces in this photo, likely due to the
 combination of eyeglasses and a bright backlit window behind the subject
 reducing facial contrast. Testing several parameter combinations against the
 real image found that `scaleFactor=1.05`, `minNeighbors=3` correctly detects
 the face. `detect.py`'s docstring for `detect_faces()` explains the reasoning
 and keeps the looser values as the default.
 
-The live webcam mode (`--webcam`) was also run for real on this machine's
-camera and correctly draws a live bounding box per frame.
+The live webcam mode (`--webcam`) was also run on this machine's camera and
+correctly draws a live bounding box per frame.
 
 ## Why this matters for Edge AI
 
 Not every edge AI problem needs a CNN. Haar cascades are trained offline
-once, then inference is pure classical image processing — no interpreter,
-no quantization decisions, no `.tflite` file at all. For a task like "is
-there a face in frame," this can be the right, cheaper answer versus running
-a full neural network, especially on the most resource-constrained devices.
-Knowing when *not* to reach for deep learning is as much a part of edge AI
+once, then inference is pure classical image processing: no interpreter, no
+quantization decisions, no `.tflite` file at all. For a task like "is there
+a face in frame," this can be the right, cheaper answer versus running a
+full neural network, especially on the most resource-constrained devices.
+Knowing when not to reach for deep learning is as much a part of edge AI
 engineering as the CNN pipeline in the rest of this repo.
 
 ## Common mistakes / gotchas
 
-- Haar cascade "default" parameters from documentation/tutorials are not
-  universal — they're tuned against whatever dataset the tutorial author
-  used. Real deployment requires testing against real target images, exactly
-  as done here (see the tuning story above).
-- `opencv-python`'s newest major version (5.0.0.93) does not expose
-  `cv2.CascadeClassifier` in its Python bindings at all — discovered while
+- Haar cascade "default" parameters from documentation/tutorials aren't
+  universal. They're tuned against whatever dataset the tutorial author
+  used, and real deployment requires testing against real target images,
+  exactly as done here (see the tuning story above).
+- `opencv-python`'s newest major version (5.0.0.93) doesn't expose
+  `cv2.CascadeClassifier` in its Python bindings at all, discovered while
   building this exact script. The whole repo's `opencv-python` pin was
   downgraded to `4.13.0.92` as a result; see
   `opencv-experiments/README.md`'s gotchas section for the full story,
   including a related Windows camera-backend fix this also surfaced.
-- `detectMultiScale`'s `minSize` parameter matters more than it looks —
-  without a sensible floor, the cascade searches for implausibly tiny "faces"
+- `detectMultiScale`'s `minSize` parameter matters more than it looks.
+  Without a sensible floor, the cascade searches for implausibly tiny "faces"
   in image noise/texture, which mostly wastes time rather than finding real
   false positives, but is worth setting deliberately rather than leaving
   unbounded.

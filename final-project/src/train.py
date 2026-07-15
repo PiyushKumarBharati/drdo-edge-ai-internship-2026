@@ -4,9 +4,11 @@ training curve plot into results/.
 """
 
 import os
+import random
 import sys
 import importlib.util
 
+import numpy as np
 import tensorflow as tf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +18,14 @@ REPO_ROOT = os.path.join(HERE, "..", "..")
 sys.path.insert(0, HERE)
 from data import load_data, CLASS_NAMES
 from model import build_model
+
+SEED = 42
+
+
+def set_seeds(seed=SEED):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
 
 
 def _load_plot_training_curves():
@@ -28,17 +38,19 @@ def _load_plot_training_curves():
 
 plot_training_curves = _load_plot_training_curves()
 
-EPOCHS = 8
+EPOCHS = 40
 BATCH_SIZE = 128
 
 
-def train():
+def train(batch_norm=True, model_filename="cnn_classifier.keras", curve_filename="training_curve.png",
+          title_prefix="Final CNN"):
     print("TensorFlow version:", tf.__version__)
+    set_seeds()
 
     data = load_data()
     print(f"train: {data['x_train'].shape}, val: {data['x_val'].shape}, test: {data['x_test'].shape}")
 
-    model = build_model()
+    model = build_model(batch_norm=batch_norm)
     model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
     model.summary()
 
@@ -47,8 +59,13 @@ def train():
     # epoch 1, then bounced between 0.84-0.90, and the LAST epoch was not the best one --
     # without this callback, training just keeps whatever the final epoch happened to
     # produce, which is not necessarily the best model seen during training).
+    # patience=4/EPOCHS=8 (the original values) turned out to be too short once a fixed
+    # seed was added for reproducibility: with seed=42, validation accuracy was still
+    # noisy and trending upward at epoch 25, so patience=4 stopped training early on a
+    # worse local point. Widened to patience=8/EPOCHS=40 so EarlyStopping stops on
+    # genuine convergence instead of cutting off a still-improving run.
     early_stopping = tf.keras.callbacks.EarlyStopping(
-        monitor="val_accuracy", patience=4, restore_best_weights=True
+        monitor="val_accuracy", patience=8, restore_best_weights=True
     )
 
     history = model.fit(
@@ -64,14 +81,14 @@ def train():
     print(f"\nFinal test accuracy: {test_acc:.4f}")
     print(f"Final test loss: {test_loss:.4f}")
 
-    model_path = os.path.join(PROJECT_ROOT, "models", "cnn_classifier.keras")
+    model_path = os.path.join(PROJECT_ROOT, "models", model_filename)
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     model.save(model_path)
     print(f"Saved model to {model_path}")
 
-    curve_path = os.path.join(PROJECT_ROOT, "results", "training_curve.png")
+    curve_path = os.path.join(PROJECT_ROOT, "results", curve_filename)
     os.makedirs(os.path.dirname(curve_path), exist_ok=True)
-    plot_training_curves(history.history, curve_path, title=f"Final CNN on Fashion-MNIST (test acc={test_acc:.4f})")
+    plot_training_curves(history.history, curve_path, title=f"{title_prefix} on Fashion-MNIST (test acc={test_acc:.4f})")
     print(f"Saved {curve_path}")
 
     print("\nFull history (real values from this run):")

@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Core pandas workflow — load, inspect, clean, aggregate, and prep features —
-practiced on a real dataset (scikit-learn's California Housing, 20,640 rows,
-9 columns, downloaded via `sklearn.datasets.fetch_california_housing`), not
+Core pandas workflow (load, inspect, clean, aggregate, prep features)
+practiced on a real dataset: scikit-learn's California Housing, 20,640 rows,
+9 columns, downloaded via `sklearn.datasets.fetch_california_housing`, not
 invented rows.
 
 ## Files
@@ -20,7 +20,7 @@ invented rows.
 
 - Inspecting an unfamiliar dataset before touching it (shape, dtypes, nulls,
   summary stats).
-- The missing-value workflow: detect → decide a fill strategy → verify it
+- The missing-value workflow: detect, decide a fill strategy, verify it
   worked.
 - `groupby` + `.agg()` for multi-statistic summaries, and `pd.cut()` for
   turning continuous columns into meaningful buckets.
@@ -37,9 +37,9 @@ python pandas-practice/04_feature_prep.py
 ```
 
 `04_feature_prep.py` writes `california_housing_clean.csv` (20,640 rows, 13
-columns, ~2.3 MB) into this folder — that file is committed to the repo.
+columns, ~2.3 MB) into this folder, and that file is committed to the repo.
 
-## Real results from running this code
+## Results from running this code
 
 Mean house value by age bracket (`03_groupby_aggregate.py`, values are
 `MedHouseVal` in units of $100k):
@@ -51,8 +51,8 @@ Mean house value by age bracket (`03_groupby_aggregate.py`, values are
 | 31-45 | 2.062 | 1.782 | 7,284 |
 | 46-60 | 2.474 | 2.250 | 2,211 |
 
-Older housing blocks (46-60 years) skew toward *higher* median value in this
-dataset — likely reflecting established, desirable neighborhoods rather than
+Older housing blocks (46-60 years) skew toward higher median value in this
+dataset, likely reflecting established, desirable neighborhoods rather than
 age itself causing value.
 
 Income tier distribution (`04_feature_prep.py`): mid=9,834, low=4,805,
@@ -60,27 +60,27 @@ high=4,348, very_high=1,653. Train/test split: 16,512 / 4,128 rows (80/20).
 
 ## Why this matters for Edge AI
 
-Before any model — classical or deep — sees data, someone has to answer "is
-this clean, is it balanced, what does it actually look like." A feature
-pipeline built carelessly on the desktop (wrong dtype, leaked test data,
-unbalanced classes) produces a model that looks fine in a notebook and fails
-in the field. `04_feature_prep.py`'s train/test discipline is the same
+Before any model, classical or deep, sees data, someone has to answer
+whether it's clean, whether it's balanced, and what it actually looks like.
+A feature pipeline built carelessly on the desktop (wrong dtype, leaked test
+data, unbalanced classes) produces a model that looks fine in a notebook and
+fails in the field. `04_feature_prep.py`'s train/test discipline is the same
 discipline the final CNN in `tensorflow-basics/` and `final-project/` relies
-on — evaluate only on data the model never touched during training or feature
-fitting.
+on: evaluate only on data the model never touched during training or
+feature fitting.
 
 ## Common mistakes / gotchas
 
 - Calling `StandardScaler`/`OneHotEncoder`/etc. `.fit_transform()` on the
-  *whole* dataset before splitting leaks test-set statistics into training —
-  always split first, or fit only on the train partition.
+  whole dataset before splitting leaks test-set statistics into training.
+  Always split first, or fit only on the train partition.
 - `pd.cut()` bin edges are exclusive on the left, inclusive on the right by
-  default — an off-by-one in the bin edges silently drops or misclassifies
+  default. An off-by-one in the bin edges silently drops or misclassifies
   boundary rows.
-- `df.groupby(..., observed=True)` was used deliberately — pandas'
+- `df.groupby(..., observed=True)` was used deliberately, since pandas'
   categorical groupby defaults can otherwise silently include empty
   categories in the output.
 - Injecting missing values with `rng.choice(..., replace=False)` and a fixed
-  seed makes `02_cleaning.py` reproducible — without a seed, "missing 50
-  rows" would be a different 50 rows every run, making before/after
-  comparisons unreliable to discuss.
+  seed makes `02_cleaning.py` reproducible. Without a seed, "missing 50 rows"
+  would be a different 50 rows every run, making before/after comparisons
+  unreliable to discuss.

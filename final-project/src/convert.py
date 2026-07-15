@@ -20,11 +20,11 @@ MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "cnn_classifier.keras")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 
 
-def convert_all():
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Expected {MODEL_PATH}. Run train.py first.")
+def convert_all(model_path=MODEL_PATH, output_prefix="model"):
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Expected {model_path}. Run train.py first.")
 
-    model = tf.keras.models.load_model(MODEL_PATH)
+    model = tf.keras.models.load_model(model_path)
     data = load_data()
     x_train = data["x_train"]
 
@@ -40,7 +40,7 @@ def convert_all():
     # (a) float32 baseline
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     tflite_model = converter.convert()
-    paths["float32"] = os.path.join(MODELS_DIR, "model_float32.tflite")
+    paths["float32"] = os.path.join(MODELS_DIR, f"{output_prefix}_float32.tflite")
     with open(paths["float32"], "wb") as f:
         f.write(tflite_model)
 
@@ -48,7 +48,7 @@ def convert_all():
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     tflite_model = converter.convert()
-    paths["dynamic_range"] = os.path.join(MODELS_DIR, "model_dynamic_range.tflite")
+    paths["dynamic_range"] = os.path.join(MODELS_DIR, f"{output_prefix}_dynamic_range.tflite")
     with open(paths["dynamic_range"], "wb") as f:
         f.write(tflite_model)
 
@@ -60,7 +60,7 @@ def convert_all():
     converter.inference_input_type = tf.int8
     converter.inference_output_type = tf.int8
     tflite_model = converter.convert()
-    paths["int8"] = os.path.join(MODELS_DIR, "model_int8.tflite")
+    paths["int8"] = os.path.join(MODELS_DIR, f"{output_prefix}_int8.tflite")
     with open(paths["int8"], "wb") as f:
         f.write(tflite_model)
 

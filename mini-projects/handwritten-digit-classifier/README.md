@@ -22,7 +22,12 @@ python mini-projects/handwritten-digit-classifier/02_predict.py                 
 python mini-projects/handwritten-digit-classifier/02_predict.py path/to/any_digit_image.png         # or your own image
 ```
 
-## Real results
+Note: unlike `final-project/src/train.py`, `01_train_and_convert.py` has no
+random seed, so rerunning it will train a different model and the specific
+numbers below won't reproduce exactly (the sample-image selection in
+`sample_digits/` is seeded and does reproduce).
+
+## Results
 
 Training (4 epochs, batch size 128, 10% validation split):
 
@@ -35,7 +40,7 @@ Training (4 epochs, batch size 128, 10% validation split):
 
 **Final test accuracy: 0.9815** (9,815 / 10,000 correct on the real MNIST
 test set). Model size: `.keras` = 205.59 KB, `.tflite` (dynamic-range
-quantized) = 20.35 KB — **10.1x smaller**.
+quantized) = 20.35 KB, 10.1x smaller.
 
 Prediction on 5 real MNIST test images, run through the actual `.tflite`
 model via `02_predict.py`:
@@ -54,22 +59,22 @@ Sample digit (index 5116, true label 6, correctly predicted):
 
 ## Why this matters for Edge AI
 
-This is the complete pipeline in miniature — train once on a desktop/laptop
+This is the complete pipeline in miniature: train once on a desktop/laptop
 with plenty of compute, convert once, then deploy a 20 KB file that runs
 inference in milliseconds with no retraining ever happening on the target
-device. That asymmetry (expensive training, cheap repeated inference) is the
-whole reason edge deployment of a *pre-trained* model is practical on
+device. That asymmetry, expensive training and cheap repeated inference, is
+the whole reason edge deployment of a pre-trained model is practical on
 hardware as modest as a Raspberry Pi.
 
 ## Common mistakes / gotchas
 
 - `02_predict.py` reads images with `cv2.IMREAD_GRAYSCALE` directly instead
-  of reading color and converting — simpler when you know in advance the
+  of reading color and converting. Simpler when you know in advance the
   target is always grayscale, but it would silently misbehave (three
-  identical channels collapsed to one) if handed a color photo — worth
+  identical channels collapsed to one) if handed a color photo; worth
   checking `img.ndim` if this script is ever pointed at unknown input.
 - The filename convention `digit_<index>_true<label>.png` is a
-  debugging/verification convenience specific to `sample_digits/` — real
+  debugging/verification convenience specific to `sample_digits/`. Real
   deployment images obviously won't encode their own ground truth in the
   filename, which is why `02_predict.py` treats that parsing as optional
   (`if "true" in basename`).

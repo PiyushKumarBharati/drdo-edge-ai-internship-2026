@@ -2,11 +2,10 @@
 
 ## Optimizing and Deploying a CNN Image Classifier on Edge Devices
 
-The capstone of this repository: a complete, real, end-to-end pipeline —
-data → model → training → TFLite conversion → benchmark → single-image
-inference — rebuilt as a clean standalone `src/` package rather than the
-step-by-step exploratory scripts in `tensorflow-basics/` and
-`tensorflow-lite/`.
+The capstone of this repository: a complete pipeline from data to
+deployment (training, TFLite conversion, benchmarking, single-image
+inference), built as a standalone `src/` package rather than the
+step-by-step scripts in `tensorflow-basics/` and `tensorflow-lite/`.
 
 ## Structure
 
@@ -14,129 +13,222 @@ step-by-step exploratory scripts in `tensorflow-basics/` and
 final-project/
 ├── src/
 │   ├── data.py        - load Fashion-MNIST, normalize, train/val/test split
-│   ├── model.py        - CNN architecture (26,154 params)
-│   ├── train.py        - training loop, saves model + training curve
+│   ├── model.py        - CNN architecture (26,154 params, batch_norm on/off)
+│   ├── train.py        - training loop, seeded, saves model + training curve
 │   ├── convert.py      - float32 / dynamic-range / INT8 TFLite conversion
-│   ├── benchmark.py    - size, latency, accuracy, confusion matrix
+│   ├── benchmark.py    - size, latency (mean/std/p95), accuracy, per-class report
+│   ├── qat.py           - quantization-aware training via tensorflow-model-optimization
+│   ├── ablation.py      - batch-norm-removed variant, to test what actually causes the INT8 gap
 │   └── infer.py         - image path in -> prediction out, via TFLite
-├── models/              - cnn_classifier.keras + all 3 .tflite variants
-├── results/             - training curve, confusion matrix, comparison chart,
-│                          benchmark table (.md + .csv), demo images
+├── models/              - cnn_classifier.keras + all TFLite variants (main, QAT, no-BN)
+├── results/             - training curves, confusion matrices, benchmark tables/CSVs, demo images
+│   └── ablation_no_batchnorm/  - the no-BN variant's own results, same layout
 └── notebooks/
     └── walkthrough.ipynb - executed walkthrough, outputs saved
 ```
 
-## How to run the whole pipeline
+## Running it
 
 ```bash
 python final-project/src/train.py       # trains, saves models/cnn_classifier.keras + results/training_curve.png
 python final-project/src/convert.py     # produces models/model_{float32,dynamic_range,int8}.tflite
-python final-project/src/benchmark.py   # produces results/ tables, chart, confusion matrix
+python final-project/src/benchmark.py   # produces results/ tables, chart, confusion matrix, per-class report
+python final-project/src/qat.py          # quantization-aware training, adds a qat_int8 row to the benchmark
+python final-project/src/ablation.py     # trains a no-BatchNorm variant, tests what the INT8 gap depends on
 python final-project/src/infer.py final-project/results/test_sample_correct.png --model final-project/models/model_int8.tflite
 ```
 
-Or open `notebooks/walkthrough.ipynb` — it loads the already-trained
-artifacts and walks through every stage with the real, saved results.
+Or open `notebooks/walkthrough.ipynb`, which loads the already-trained
+artifacts and walks through each stage.
 
 ## Architecture
 
-A CNN deliberately designed using the lesson from `tensorflow-basics/README.md`:
-that model found a single `Flatten`→`Dense` layer held 90% of all parameters.
-This model replaces that pattern with `GlobalAveragePooling2D` (zero
-parameters) before the final dense layers, plus one extra convolutional block
-and `BatchNormalization` for training stability:
+Three convolutional blocks (16→32→64 filters), each `Conv2D →
+BatchNormalization → Activation("relu")`, the first two followed by
+`MaxPooling2D`. Then `GlobalAveragePooling2D → Dense(32) → Dropout(0.3) →
+Dense(10, softmax)`. 26,154 parameters total.
 
-| Metric | tensorflow-basics CNN | final-project CNN |
-|---|---|---|
-| Parameters | 56,714 | **26,154** |
-| Conv blocks | 2 | 3 |
-| Head | Flatten → Dense(64) | GlobalAveragePooling2D → Dense(32) |
+`GlobalAveragePooling2D` replaces the `Flatten → Dense` head that
+`tensorflow-basics/README.md` found holding 90% of that model's parameters.
+GAP has zero parameters, so the conv layers carry the representational load
+instead.
 
-## Real results
+`model.py`'s `build_model(batch_norm=True)` keeps the activation as its own
+layer rather than fusing it into `Conv2D(activation="relu")`. That's not
+cosmetic: `qat.py`'s quantization-aware training only works with activation
+as a separate layer (see Discussion below), so the same builder function is
+used everywhere in this folder, keeping one architecture instead of two.
 
-**Training** (8 epochs, `EarlyStopping(monitor="val_accuracy", restore_best_weights=True)`):
+## Training
 
-A first real run without early stopping showed validation accuracy was
-unstable epoch to epoch (it crashed to 0.35 on epoch 1 from BatchNorm still
-calibrating its running statistics, then bounced between 0.84–0.90, and the
-*last* epoch was not the best one). Added `EarlyStopping` with
-`restore_best_weights=True` so training always keeps the best-performing
-snapshot rather than whatever the final epoch happened to produce — a real
-engineering decision made because the problem was actually observed, not a
-generic best practice applied blindly.
+Adam optimizer, sparse categorical cross-entropy, batch size 128, up to 40
+epochs with `EarlyStopping(monitor="val_accuracy", patience=8,
+restore_best_weights=True)`. `train.py` seeds Python's `random`, NumPy, and
+`tf.random` (seed 42) before building or training the model. Reruns of
+`train.py` on this machine reproduce the same epoch-by-epoch history and the
+same final test accuracy.
 
-**Final test accuracy: 0.9007** (beats the simpler `tensorflow-basics` CNN's
-87.45%, with fewer than half the parameters).
+The patience/epoch budget was widened from an earlier 4/8 after adding the
+seed exposed a real problem. With a fixed seed, validation accuracy was
+still climbing at epoch 25 in a diagnostic run, so the old patience=4 was
+cutting training off before it converged: not a hypothetical risk, an
+observed one. Validation accuracy is still noisy epoch to epoch (a
+BatchNorm running-statistics effect noted below), which is why
+`restore_best_weights=True` matters here.
+
+**Test accuracy: 87.21%** (10,000-image Fashion-MNIST test set).
 
 ![training curve](results/training_curve.png)
 
-**Confusion matrix** (float32 model, full 10,000-image test set):
+## Benchmark
 
-![confusion matrix](results/confusion_matrix.png)
+Same methodology throughout: accuracy over the full 10,000-image test set;
+latency as the mean, std, and p95 of 200 timed single-image calls after 20
+discarded warmup calls.
 
-The expected Fashion-MNIST confusion cluster shows up clearly: Shirt,
-T-shirt/top, Pullover, and Coat are confused with each other far more than
-with anything else — these classes genuinely look similar at 28×28
-grayscale resolution.
-
-**TFLite benchmark** (from `results/benchmark_table.md`, real measurements,
-200 timed runs after 20 discarded warmup runs):
-
-| Model | Size (KB) | Accuracy | Mean latency (ms/image) |
-|---|---|---|---|
-| float32 | 107.32 | 0.9007 | 0.2439 |
-| dynamic_range | 35.42 | 0.9014 | 0.1517 |
-| int8 | 36.41 | 0.8589 | 0.2056 |
+| Model | Size (KB) | Accuracy | Mean latency (ms) | Std (ms) | P95 (ms) |
+|---|---|---|---|---|---|
+| float32 | 105.86 | 0.8721 | 0.0694 | 0.0014 | 0.0725 |
+| dynamic_range | 33.96 | 0.8723 | 0.0353 | 0.0011 | 0.0357 |
+| int8 | 35.18 | 0.8722 | 0.0461 | 0.0013 | 0.0495 |
+| qat_int8 | 33.81 | 0.9091 | 0.0471 | 0.0012 | 0.0479 |
 
 ![comparison chart](results/comparison_chart.png)
 
-**A real, more pronounced tradeoff than seen elsewhere in this repo:**
-dynamic-range quantization was essentially free here (accuracy even ticked
-up slightly, 90.07% → 90.14%) and was the fastest variant. Full INT8,
-however, cost a real **~4.2 percentage point** accuracy drop (90.07% →
-85.89%) — unlike the simpler CNN in `tensorflow-lite/`, where INT8 accuracy
-loss was under 0.2 points. The likely cause: this model's
-`BatchNormalization` layers add learned scale/shift parameters and running
-statistics as additional sources of quantization error, on top of the
-convolutional weights — a genuine architecture-dependent tradeoff, not a
-fixed cost of quantization in general.
+Post-training INT8 quantization costs almost nothing here: 87.21% to 87.22%.
+That's a different result from what this README used to say (a ~4.2
+percentage point drop). See Discussion below for why, and what changed.
 
-**Single-image inference** (`src/infer.py`, two real examples):
+`results/classification_reports.txt` has full per-class precision/recall/F1
+for every variant (`sklearn.metrics.classification_report`). The weak class
+throughout is **Shirt** (recall around 74%, most often confused with
+T-shirt/top, Pullover, and Coat), visually the hardest category at 28×28
+grayscale. This holds across every quantization level; it isn't something
+quantization introduces.
+
+## Confusion matrix (float32)
+
+![confusion matrix](results/confusion_matrix.png)
+
+Shirt, T-shirt/top, Pullover, and Coat cluster together. Trouser, Sandal,
+and Bag are almost never confused with anything else.
+
+## Quantization-aware training (`qat.py`)
+
+Real QAT, using `tensorflow-model-optimization` 0.8.1. Two things had to be
+worked out first, both found by actually trying it rather than assumed from
+the package's docs:
+
+1. `tensorflow-model-optimization` needs the standalone `tf_keras` package
+   and `TF_USE_LEGACY_KERAS=1` to import at all under TensorFlow 2.21 (which
+   defaults to Keras 3). Without it, `import tensorflow_model_optimization`
+   raises `ImportError: Keras cannot be imported`. Both are now real
+   dependencies in `requirements.txt`.
+2. `tfmot.quantization.keras.quantize_model()` fails with `RuntimeError:
+   Layer batch_normalization:<...> is not supported` when a Conv2D's
+   activation is fused (`Conv2D(activation="relu")`). It only recognizes the
+   Conv → BatchNorm → Activation fusion pattern when activation is its own
+   layer, which is why `model.py` builds it that way everywhere, not just
+   for QAT.
+
+Because `qat.py` runs in a separate process with the legacy Keras compat
+layer active, it can't load `models/cnn_classifier.keras` (saved by Keras 3,
+a different serialization format). It trains its own float32 baseline
+first, same architecture/seed/hyperparameters as `train.py`, then applies
+`quantize_model()`, fine-tunes for 5 more epochs, and converts to INT8. Its
+own baseline reached 89.06%, not identical to `train.py`'s 87.21% despite
+the same seed: Keras 3 and legacy `tf_keras` don't consume randomness
+identically for the same model, so the same seed doesn't mean the same run
+across the two backends.
+
+**Result: 90.91% INT8 accuracy**, the best of any variant in the table
+above, and higher than its own float32 starting point. Read that carefully:
+this isn't a clean "QAT recovered the drop" story, because there was barely
+a drop to recover in the plain post-training INT8 model already (87.21% to
+87.22%). Part of the QAT number is likely just 5 extra epochs of training
+rather than quantization-awareness specifically, a confound I can't fully
+separate out without training a float32 model for 5 more epochs under the
+same legacy-Keras process for comparison, which wasn't done here. What's
+solid is that QAT ran successfully end to end and produced a real,
+verified, high-accuracy INT8 model.
+
+## Testing the BatchNorm hypothesis (`ablation.py`)
+
+This README used to assert that BatchNormalization caused the INT8 accuracy
+drop, without testing it. `ablation.py` actually tests it: same
+architecture, same seed, same training budget, `batch_norm=False`.
+
+| Model | Accuracy | INT8 delta |
+|---|---|---|
+| with BatchNorm (main model) | 87.21% float32 → 87.22% int8 | +0.01pp |
+| without BatchNorm | 89.37% float32 → 89.48% int8 | +0.11pp |
+
+Removing BatchNorm didn't reveal anything, because the with-BatchNorm model
+already had no drop to shrink. That's evidence against the original
+hypothesis, not for it. Full results and per-class numbers are in
+`results/ablation_no_batchnorm/`.
+
+So where did the originally-reported ~4.2pp drop actually come from? To
+check, I retrained the *original* architecture (`Conv2D(activation="relu")`
+fused, not split) with the same seed. It reproduced a real gap: 90.60%
+float32 to 87.89% int8 (2.71pp), concentrated almost entirely in **Coat**
+(-13.3pp) and **Shirt** (-13.9pp), the same visually-confused cluster called
+out above. The split-activation architecture (`model.py`'s current form,
+needed for QAT) doesn't show this gap, with or without BatchNorm.
+
+That points at something more specific than "BatchNorm causes quantization
+error." It looks like whether Conv2D's activation is fused or a separate
+layer changes how TFLite's converter fuses and quantizes the
+Conv+BatchNorm+ReLU sequence, and that, not BatchNorm's presence by itself,
+is what the accuracy drop actually tracked. I haven't confirmed the exact
+mechanism inside the converter, so this is a reported correlation, not a
+proven cause. It would be worth a real investigation rather than another
+assumption.
+
+## Single-image inference (`infer.py`)
 
 | Image | True label | float32 | dynamic_range | int8 |
 |---|---|---|---|---|
-| ![clean](results/test_sample_correct.png) | Ankle boot | Ankle boot (0.9994) | Ankle boot (0.9995) | Ankle boot (0.9961) |
-| ![ambiguous](results/test_sample_ambiguous.png) | Dress | Coat (0.4283) | Coat (0.4537) | **Dress (0.4297)** |
+| ![clean](results/test_sample_correct.png) | Ankle boot | Ankle boot (0.9989) | Ankle boot (0.9990) | Ankle boot (0.9961) |
+| ![ambiguous](results/test_sample_ambiguous.png) | Dress | Coat (0.4023) | Coat (0.4081) | Coat (0.3789) |
 
-The second example is kept deliberately — all three models are genuinely
-uncertain (confidences under 50%), two get it wrong, and INT8 happens to get
-it right. This is a realistic result, not a curated success story.
+All three variants agree on both images: correct on the first, wrong on the
+second, all under 50% confidence on the wrong one. The retrained model's
+predictions no longer split by quantization format on the ambiguous example
+the way an earlier version of this model did. Genuinely uncertain, not
+staged either way.
 
 ## Why this matters for Edge AI
 
-This project is the whole internship's argument made concrete in one
-pipeline: a real accuracy/size/latency tradeoff exists, it is *architecture
-dependent* (compare this model's real ~4.2pp INT8 accuracy cost against the
-simpler model's near-zero cost in `tensorflow-lite/`), and the right choice
-of quantization format is a measured engineering decision, not a default to
-apply blindly. `raspberry-pi/README.md` is explicit that none of this
-project's latency numbers have been verified on ARM hardware — the
-conclusion here is about the *shape* of the tradeoff, not a universal number.
+The real lesson here isn't "BatchNorm is dangerous for quantization"; the
+ablation shows that isn't well supported. It's that a small, easy-to-miss
+architectural detail (fused vs. separate activation layers) can determine
+whether INT8 quantization is free or costs several accuracy points, and the
+only way to know which one you're getting is to measure it on the actual
+model you're shipping, the way `benchmark.py` and `ablation.py` do here.
+`raspberry-pi/README.md` covers the separate question of what carries over
+to real ARM hardware versus what's specific to this x86 laptop.
 
 ## Common mistakes / gotchas
 
 - `EarlyStopping(restore_best_weights=True)` matters more with
-  `BatchNormalization` in the architecture — BatchNorm's running statistics
-  make early epochs noisier than a plain CNN, so the "last epoch" is more
-  likely to not be the best one.
-- The confusion matrix is generated from the **float32** model specifically
-  (the reference full-precision result) — `benchmark.py`'s
-  `predictions_by_model` dict keeps every variant's predictions, but only
-  float32's are plotted, since the goal is understanding what the *model*
-  gets confused about, not re-deriving the same story three times per
-  quantization format.
-- `notebooks/walkthrough.ipynb` deliberately does **not** retrain the model
-  inside the notebook — it loads the already-trained artifacts from
-  `models/` and `results/`. This keeps the notebook fast to open and re-run,
-  while still being fully real: every number/image comes from `src/`'s
-  actual execution, not retyped by hand.
+  BatchNormalization in the architecture. Its running statistics make early
+  epochs noisier, so the last epoch is less likely to be the best one.
+- A fixed random seed doesn't just make results reproducible, it can also
+  expose that your hyperparameters were tuned against a different, lucky
+  random run. This repo's `patience=4/EPOCHS=8` only looked adequate before
+  seeding was added.
+- Two Keras backends (Keras 3 vs. the legacy `tf_keras` package used by
+  `qat.py`) don't consume the same random seed identically for the same
+  model. A fixed seed gives reproducibility *within* a backend, not
+  identical results *across* backends.
+- `tf.keras.models.load_model()` can't load a Keras-3-saved `.keras` file
+  from a process running `TF_USE_LEGACY_KERAS=1`, which is why `qat.py`
+  trains its own baseline instead of loading `cnn_classifier.keras`.
+- The confusion matrix and classification report are generated from the
+  **float32** model specifically. `benchmark.py` keeps every variant's
+  predictions, but float32 is the reference for what the model actually
+  gets confused about, independent of quantization.
+- `notebooks/walkthrough.ipynb` does not retrain anything. It loads the
+  already-trained artifacts from `models/` and `results/`, so every number
+  it displays comes from `src/`'s real execution, not retyped by hand.

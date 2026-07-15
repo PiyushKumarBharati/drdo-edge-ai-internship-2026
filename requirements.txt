@@ -16,3 +16,12 @@ opencv-python==4.13.0.92
 seaborn==0.13.2
 jupyter==1.1.1
 pillow==12.3.0
+
+# Added for final-project/src/qat.py (quantization-aware training). tfmot's
+# default quantize_model() needs the legacy tf.keras compat layer to import
+# under TF 2.21/Keras 3 (see qat.py's TF_USE_LEGACY_KERAS=1 at the top).
+# Installing tensorflow-model-optimization downgraded absl-py from 2.5.0 to
+# 1.4.0 (its own pin is absl-py~=1.2); verified the rest of the repo's
+# scripts still run correctly under absl-py 1.4.0.
+tensorflow-model-optimization==0.8.1
+tf-keras==2.21.0

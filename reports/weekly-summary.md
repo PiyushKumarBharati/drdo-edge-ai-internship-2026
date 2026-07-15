@@ -43,7 +43,7 @@ demonstration (DecisionTree train/test accuracy gap vs. `max_depth`).
 ## TensorFlow fundamentals (`tensorflow-basics/`)
 
 Tensors vs. NumPy arrays, a dense network on MNIST (97.16% test accuracy), a
-small CNN on Fashion-MNIST (87.45% test accuracy), and model inspection —
+small CNN on Fashion-MNIST (87.45% test accuracy), and model inspection,
 finding that a single `Flatten`→`Dense` layer held 90.4% of that model's
 parameters, which directly informed the final project's architecture choice.
 
@@ -57,7 +57,7 @@ capture with graceful no-camera handling. Found and fixed a real bug during
 this phase: an early version of the synthetic test image had color contrast
 but almost no *luminance* contrast, which nearly defeated edge detection.
 
-## TensorFlow Lite (`tensorflow-lite/`) — the core topic
+## TensorFlow Lite (`tensorflow-lite/`), the core topic
 
 Converting a trained model to float32/dynamic-range/INT8 TFLite variants;
 what a representative dataset is and why INT8 needs one; running inference
@@ -80,7 +80,7 @@ don't exist.
 
 Two complete small pipelines: a handwritten digit classifier (98.15%
 accuracy, 20.35 KB TFLite model) and a Haar-cascade face detector (with a
-real parameter-tuning story — default settings found zero faces on the test
+real parameter-tuning story: default settings found zero faces on the test
 photo, tuned settings found one). Building the face detector also surfaced
 and fixed two real environment bugs: a newer `opencv-python` version missing
 `cv2.CascadeClassifier` entirely, and an unreliable default camera backend
@@ -88,19 +88,27 @@ on Windows.
 
 ## Final project (`final-project/`)
 
-The complete pipeline rebuilt as a standalone package: a smaller,
-better-architected CNN (26,154 params, using `GlobalAveragePooling2D`
-instead of a large dense head) that outperforms the earlier exploratory CNN
-(90.07% vs. 87.45% test accuracy) while being less than half the size. The
-benchmark on this model surfaced a more dramatic, genuinely useful finding:
-full INT8 quantization cost a real ~4.2 percentage points of accuracy here
-(vs. under 0.2 points on the simpler model), most likely due to batch
-normalization adding extra quantization sensitivity — demonstrating that the
-quantization tradeoff is architecture-dependent, not a fixed cost.
+The complete pipeline rebuilt as a standalone package: a smaller CNN
+(26,154 params, using `GlobalAveragePooling2D` instead of a large dense
+head) reaching 87.21% test accuracy with seeded, reproducible training,
+about level with the earlier, larger `tensorflow-basics` CNN (87.45%) at
+under half the parameter count. An earlier unseeded run of this same
+architecture had reported 90.07%; that couldn't be reproduced once training
+was made auditable, and isn't this model's reported accuracy anymore. The
+INT8 accuracy drop this report used to attribute to batch normalization
+(~4.2 points) also didn't hold up once actually tested: training the same
+architecture with BatchNorm removed showed no change, because the
+with-BatchNorm model's own drop had already shrunk to near zero after
+retraining. What does reproduce a real ~2.7-point drop is the *original*
+model code, before this repository's structure changed to support
+quantization-aware training. See `final-project/README.md`'s Discussion
+for the full investigation. Quantization-aware training
+(`final-project/src/qat.py`, via `tensorflow-model-optimization`) reached
+90.91% accuracy, the best of any variant benchmarked.
 
 ## Reporting
 
-This report and `final-report.md` — pulling together every real measurement
-produced across all of the above topics into one coherent technical
-narrative, written and reviewed against the actual repository code and
-output rather than drafted first and back-filled with numbers.
+This report and `final-report.md` pull together every measurement produced
+across the topics above into one technical narrative, checked against the
+actual repository code and output rather than drafted first and
+back-filled with numbers.

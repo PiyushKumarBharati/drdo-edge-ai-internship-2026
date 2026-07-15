@@ -1,4 +1,5 @@
-model,size_kb,accuracy,latency_ms
-float32,107.3242,0.9007,0.2439
-dynamic_range,35.4219,0.9014,0.1517
-int8,36.4062,0.8589,0.2056
+model,size_kb,accuracy,latency_mean_ms,latency_std_ms,latency_p95_ms
+float32,105.8555,0.8721,0.0694,0.0014,0.0725
+dynamic_range,33.9609,0.8723,0.0353,0.0011,0.0357
+int8,35.1797,0.8722,0.0461,0.0013,0.0495
+qat_int8,33.8125,0.9091,0.0471,0.0012,0.0479
