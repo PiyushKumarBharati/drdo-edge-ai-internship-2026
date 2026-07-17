@@ -7,22 +7,12 @@ Face detection with OpenCV's Haar cascade classifier, a classical
 no GPU, no neural network interpreter, just fast image convolutions that run
 in milliseconds on very modest hardware.
 
-## A note on the test image
-
-This is a public repository. Detection demos like this usually run on a
-photo of a person, which raises a real privacy/consent question that doesn't
-apply to the synthetic shapes or public datasets used elsewhere in this repo.
-`test_photo.jpg` is a live photo captured from this development machine's own
-webcam during this session, used with explicit confirmation before it was
-added to the repo. Nothing here uses an image of a stranger scraped from the
-internet.
-
 ## Files
 
 | File | Description |
 |---|---|
 | `detect.py` | Loads OpenCV's bundled `haarcascade_frontalface_default.xml`, runs `detectMultiScale` on an image (default: `test_photo.jpg`), draws boxes, saves the result. `--webcam` also runs live detection on a camera feed. |
-| `test_photo.jpg` | A real photo captured from this machine's webcam (used with explicit approval, see above). |
+| `test_photo.jpg` | A real photo captured from this machine's webcam. |
 | `detection_result.jpg` | Output: `test_photo.jpg` with a detected-face bounding box drawn on it. |
 
 ## How to run
@@ -50,9 +40,6 @@ reducing facial contrast. Testing several parameter combinations against the
 real image found that `scaleFactor=1.05`, `minNeighbors=3` correctly detects
 the face. `detect.py`'s docstring for `detect_faces()` explains the reasoning
 and keeps the looser values as the default.
-
-The live webcam mode (`--webcam`) was also run on this machine's camera and
-correctly draws a live bounding box per frame.
 
 ## Why this matters for Edge AI
 

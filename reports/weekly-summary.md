@@ -105,10 +105,3 @@ quantization-aware training. See `final-project/README.md`'s Discussion
 for the full investigation. Quantization-aware training
 (`final-project/src/qat.py`, via `tensorflow-model-optimization`) reached
 90.91% accuracy, the best of any variant benchmarked.
-
-## Reporting
-
-This report and `final-report.md` pull together every measurement produced
-across the topics above into one technical narrative, checked against the
-actual repository code and output rather than drafted first and
-back-filled with numbers.
